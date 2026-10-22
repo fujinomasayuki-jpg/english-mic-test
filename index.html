@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>AI英会話 | マイク動作テスト</title>
+  <style>
+    :root{color-scheme:light;--navy:#17324f;--blue:#1d65c1;--bg:#f2f6fb;--text:#193049;--line:#d9e4ef;--muted:#59718a;--good:#136d43;--warn:#a15a10}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;color:var(--text);line-height:1.6}
+    main{max-width:580px;margin:0 auto;padding:22px 16px 44px}
+    .eyebrow{font-size:12px;letter-spacing:.1em;color:var(--blue);font-weight:800}
+    h1{font-size:25px;line-height:1.4;margin:7px 0 8px;color:var(--navy)}
+    .lead{font-size:14px;color:var(--muted);margin:0 0 20px}
+    section{background:white;border:1px solid var(--line);border-radius:17px;padding:18px;margin-bottom:13px;box-shadow:0 4px 18px #163b5c0b}
+    h2{font-size:17px;margin:0 0 10px;color:var(--navy)}
+    p{margin:8px 0;font-size:14px}
+    .step{font-size:12px;color:var(--blue);font-weight:800;letter-spacing:.05em}
+    .phrase{background:#f2f6ff;padding:12px;border-radius:10px;font-size:17px;font-weight:700;text-align:center;margin:11px 0}
+    .buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+    button{border:0;min-height:52px;border-radius:11px;font-size:16px;font-weight:750;cursor:pointer;touch-action:manipulation}
+    button.primary{background:var(--blue);color:white}button.secondary{background:#e8eef7;color:var(--navy)}
+    button:disabled{opacity:.46;cursor:not-allowed}
+    .status{padding:11px 13px;border-radius:10px;background:#eff3f7;font-size:13px;min-height:44px;white-space:pre-wrap}
+    .status.good{background:#e6f6ec;color:var(--good)} .status.bad{background:#fff1e4;color:#813e00}
+    .meter{font-size:26px;text-align:center;font-weight:800;letter-spacing:.04em;font-variant-numeric:tabular-nums;margin:10px 0}
+    audio{width:100%;margin-top:8px}
+    dl{display:grid;grid-template-columns:125px 1fr;gap:8px 10px;font-size:12px;word-break:break-word;margin:7px 0}
+    dt{color:var(--muted)}dd{margin:0;font-weight:600}
+    .note{background:#f6f8fb;border-left:3px solid #87a1c5;padding:10px 12px;color:var(--muted);font-size:12px}
+    .footer{font-size:12px;color:var(--muted)}
+    @media(max-width:360px){main{padding-left:12px;padding-right:12px}.buttons{grid-template-columns:1fr}dl{grid-template-columns:100px 1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">AI ENGLISH CHATBOT • PHASE 1</div>
+  <h1>マイク動作テスト</h1>
+  <p class="lead">Pixel 9a / Chrome 優先。次に iPhone 12 / Safari でも確認します。API接続はなく、利用料金は発生しません。</p>
+  <section>
+    <h2>① 実行環境の確認</h2>
+    <dl>
+      <dt>HTTPS等の安全な接続</dt><dd id="secure">確認中</dd>
+      <dt>マイク API</dt><dd id="mediaapi">確認中</dd>
+      <dt>録音 API</dt><dd id="recapi">確認中</dd>
+      <dt>優先録音形式</dt><dd id="type">確認中</dd>
+      <dt>ブラウザ</dt><dd id="browser">確認中</dd>
+      <dt>埋め込み画面か</dt><dd id="frame">確認中</dd>
+    </dl>
+  </section>
+  <section>
+    <div class="step">STEP 1 / RECORD</div>
+    <h2>② 英語を約5秒間話す</h2>
+    <p>「録音開始」を押して、マイクの使用を許可してください。</p>
+    <div class="phrase" lang="en">Hello. My name is Taro.<br>I like music.</div>
+    <div class="meter" id="timer">00:00</div>
+    <div class="buttons">
+      <button id="start" class="primary" type="button">🎙 録音開始</button>
+      <button id="stop" class="secondary" type="button" disabled>■ 録音終了</button>
+    </div>
+    <div id="record-status" class="status" aria-live="polite">準備完了。録音は最大10秒で自動終了します。</div>
+  </section>
+  <section>
+    <div class="step">STEP 2 / PLAYBACK</div>
+    <h2>③ 録音した音声を再生</h2>
+    <p>自分の英語が聞こえれば、録音と再生の基本機能は成功です。</p>
+    <audio id="player" controls playsinline preload="none" aria-label="録音音声の再生"></audio>
+    <div id="audio-info" class="status">録音後に音声形式とサイズを表示します。</div>
+  </section>
+  <section>
+    <div class="step">STEP 3 / LOCAL DATA CHECK</div>
+    <h2>④ API送信前の形式変換チェック</h2>
+    <p>録音ファイルをブラウザ内でBase64に変換できるか検証します。<strong>送信はしません。</strong></p>
+    <button id="convert" class="secondary" style="width:100%" type="button" disabled>形式変換をテスト</button>
+    <div id="convert-status" class="status" style="margin-top:10px">録音完了後に利用できます。</div>
+    <p class="note">音声を外部に送ったりGoogle Driveに保存したりする機能はありません。この画面を閉じると録音データは保持されません。</p>
+  </section>
+  <section>
+    <h2>⑤ テスト結果</h2>
+    <p class="footer">問題があれば、下の診断情報をコピーして開発チャットに貼り付けてください。端末固有の情報を含みます。</p>
+    <div class="buttons" style="grid-template-columns:1fr">
+      <button id="copy" class="secondary" type="button">結果をコピー</button>
+    </div>
+    <pre id="debug" style="white-space:pre-wrap;word-break:break-word;font-size:12px;background:#f6f8fb;padding:12px;border-radius:9px"></pre>
+  </section>
+  <p class="footer">Prototype 1.0 / 2026-10-22 / OpenAI API未接続。音声認識・英文添削はまだ実装していません。</p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let stream = null;
+  let recorder = null;
+  let pieces = [];
+  let recordingBlob = null;
+  let playbackUrl = null;
+  let startedAt = 0;
+  let ticker = null;
+  let autoStop = null;
+  let lastError = 'なし';
+  let conversionResult = '未検証';
+  let recResult = '未実施';
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mp4;codecs=mp4a.40.2'];
+  const supported = typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function';
+  const selectedType = supported ? candidates.find(x => MediaRecorder.isTypeSupported(x)) || '' : '';
+
+  function setStatus(id, message, kind='') {
+    const el = $(id);
+    el.textContent = message;
+    el.className = 'status' + (kind ? ' ' + kind : '');
+    updateDebug();
+  }
+  function readableBytes(n) { return n < 1024 ? n+' B' : (n/1024).toFixed(1)+' KB'; }
+  function browserDescription() {
+    const ua = navigator.userAgent;
+    let os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS/iPadOS' : 'その他';
+    let browser = /CriOS/i.test(ua) ? 'Chrome (iOS)' : /FxiOS/i.test(ua) ? 'Firefox (iOS)' : /EdgA|EdgiOS/i.test(ua) ? 'Edge' : /Chrome/i.test(ua) ? 'Chrome' : /Safari/i.test(ua) ? 'Safari' : 'その他';
+    return `${os} / ${browser}`;
+  }
+  function updateDebug() {
+    const lines = [
+      '接続: ' + (window.isSecureContext ? 'secure' : 'not secure'),
+      'マイクAPI: ' + Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      'MediaRecorder: ' + (typeof MediaRecorder !== 'undefined'),
+      '録音形式候補: ' + (selectedType || 'ブラウザ既定/不明'),
+      '環境: ' + browserDescription(),
+      'iframe: ' + (window.self !== window.top),
+      '録音: ' + recResult,
+      '録音形式: ' + (recordingBlob ? (recordingBlob.type || recorder?.mimeType || '不明') : 'なし'),
+      '録音サイズ: ' + (recordingBlob ? recordingBlob.size + ' bytes' : 'なし'),
+      'Base64変換: ' + conversionResult,
+      '直近エラー: ' + lastError
+    ];
+    $('debug').textContent = lines.join('\n');
+  }
+  function stopTracks() {
+    if (stream) { stream.getTracks().forEach(track => track.stop()); stream = null; }
+  }
+  function clearClock() {
+    clearInterval(ticker);
+    clearTimeout(autoStop);
+    ticker = null; autoStop = null;
+  }
+  function unlockButtons() {
+    $('start').disabled = !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined';
+    $('stop').disabled = true;
+  }
+  function stopRecording() {
+    if (recorder && recorder.state !== 'inactive') {
+      $('stop').disabled = true;
+      recorder.stop();
+      setStatus('record-status', '録音を終了しています…');
+    }
+  }
+  async function startRecording() {
+    $('start').disabled = true;
+    $('convert').disabled = true;
+    recordingBlob = null;
+    conversionResult = '未検証';
+    recResult = '開始中';
+    lastError = 'なし';
+    if (playbackUrl) URL.revokeObjectURL(playbackUrl);
+    playbackUrl = null;
+    $('player').removeAttribute('src');
+    $('player').load();
+    setStatus('audio-info', '録音待機中');
+    setStatus('convert-status', '録音完了後に利用できます。');
+    setStatus('record-status', 'マイクのアクセス許可を確認しています…');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true},video:false});
+      pieces = [];
+      recorder = selectedType ? new MediaRecorder(stream, {mimeType:selectedType}) : new MediaRecorder(stream);
+      recorder.ondataavailable = ev => { if (ev.data && ev.data.size > 0) pieces.push(ev.data); };
+      recorder.onerror = ev => {
+        const name = ev.error?.name || 'RecorderError';
+        lastError = name + ': ' + (ev.error?.message || '');
+        recResult = '失敗';
+        setStatus('record-status','録音エラー: '+lastError,'bad');
+        clearClock(); stopTracks(); unlockButtons();
+      };
+      recorder.onstop = () => {
+        clearClock(); stopTracks(); unlockButtons();
+        const mime = recorder.mimeType || selectedType || 'application/octet-stream';
+        recordingBlob = new Blob(pieces,{type:mime});
+        if (!recordingBlob.size) {
+          recResult = 'データなし';
+          setStatus('record-status','録音データを取得できませんでした。再試行してください。','bad');
+          setStatus('audio-info','録音データがありません。','bad');
+          return;
+        }
+        playbackUrl = URL.createObjectURL(recordingBlob);
+        $('player').src = playbackUrl;
+        $('player').load();
+        recResult = '成功';
+        setStatus('record-status','録音完了。下のプレーヤーで再生してください。','good');
+        setStatus('audio-info','録音形式: '+recordingBlob.type+'\nデータサイズ: '+readableBytes(recordingBlob.size),'good');
+        $('convert').disabled = false;
+        updateDebug();
+      };
+      recorder.start();
+      $('stop').disabled = false;
+      recResult = '録音中';
+      startedAt = Date.now();
+      setStatus('record-status','録音中です。英語を話してください。','good');
+      const tick = () => {
+        const seconds = Math.floor((Date.now()-startedAt)/1000);
+        $('timer').textContent = '00:'+String(Math.min(seconds,10)).padStart(2,'0');
+      };
+      tick();
+      ticker = setInterval(tick,200);
+      autoStop = setTimeout(stopRecording,10000);
+    } catch (e) {
+      clearClock(); stopTracks(); unlockButtons();
+      recResult = '失敗';
+      lastError = (e.name || 'Error') + ': ' + (e.message || '');
+      const explanations = {
+        NotAllowedError: 'マイクの許可が拒否されたか、ブラウザの権限で制限されています。',
+        SecurityError: 'セキュリティ制限でマイクを利用できません。HTTPSでページを開いてください。',
+        NotFoundError: '利用可能なマイクが見つかりません。',
+        NotReadableError: 'マイクを利用できません。他のアプリによる使用状況を確認してください。',
+        TypeError: '安全な接続で開いているか確認してください。'
+      };
+      setStatus('record-status', (explanations[e.name] || '録音開始に失敗しました。')+'\n'+lastError, 'bad');
+    }
+  }
+  function checkBase64() {
+    if (!recordingBlob) return;
+    $('convert').disabled = true;
+    setStatus('convert-status','ブラウザ内で変換しています…');
+    const fr = new FileReader();
+    fr.onload = () => {
+      const encoded = String(fr.result).split(',')[1] || '';
+      const recoveredSize = Math.floor(encoded.length*3/4) - (encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0);
+      if (recoveredSize === recordingBlob.size) {
+        conversionResult = '成功';
+        setStatus('convert-status', `変換成功（${encoded.length.toLocaleString()}文字）。音声を外部には送信していません。`, 'good');
+      } else {
+        conversionResult = 'サイズ不一致';
+        setStatus('convert-status','変換結果のサイズが一致しません。','bad');
+      }
+      $('convert').disabled = false;
+      updateDebug();
+    };
+    fr.onerror = () => {
+      conversionResult = '失敗'; lastError = 'FileReaderError';
+      setStatus('convert-status','形式変換に失敗しました。','bad');
+      $('convert').disabled = false;
+      updateDebug();
+    };
+    fr.readAsDataURL(recordingBlob);
+  }
+  $('secure').textContent = window.isSecureContext ? 'OK（安全な接続）' : 'NG（HTTPSが必要）';
+  $('mediaapi').textContent = navigator.mediaDevices?.getUserMedia ? '利用可能' : '利用できません';
+  $('recapi').textContent = typeof MediaRecorder !== 'undefined' ? '利用可能' : '利用できません';
+  $('type').textContent = selectedType || (typeof MediaRecorder !== 'undefined' ? 'ブラウザ既定' : '未対応');
+  $('browser').textContent = browserDescription();
+  $('frame').textContent = window.self !== window.top ? 'はい（制限の可能性あり）' : 'いいえ';
+  unlockButtons(); updateDebug();
+  $('start').addEventListener('click', startRecording);
+  $('stop').addEventListener('click', stopRecording);
+  $('convert').addEventListener('click', checkBase64);
+  $('copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('debug').textContent);
+      $('copy').textContent = '✓ コピーしました';
+      setTimeout(() => $('copy').textContent = '結果をコピー', 2200);
+    } catch (e) {
+      const selection = document.createRange();
+      selection.selectNodeContents($('debug'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(selection);
+      $('copy').textContent = '結果を選択しました。手動でコピーしてください';
+    }
+  });
+  window.addEventListener('pagehide', () => { clearClock(); stopTracks(); if (playbackUrl) URL.revokeObjectURL(playbackUrl); });
+})();
+</script>
+</body>
+</html>
