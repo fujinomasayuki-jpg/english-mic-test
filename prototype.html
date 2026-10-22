@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>AI英会話 | Phase 1 API連携テスト</title>
+<style>
+:root{--blue:#1766c1;--ink:#193451;--muted:#567087;--bg:#eef4fa;--line:#dae4ef;--green:#15764b;--warn:#993d35}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;line-height:1.65}
+main{max-width:620px;padding:24px 15px 40px;margin:auto}h1{font-size:24px;line-height:1.4;margin:7px 0}.intro{font-size:13px;color:var(--muted);margin:5px 0 20px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--blue)}section{background:#fff;border:1px solid var(--line);border-radius:17px;padding:18px;margin-bottom:14px;box-shadow:0 3px 16px #14375c0a}h2{margin:0 0 12px;font-size:17px}.step{font-size:11px;font-weight:800;color:var(--blue);letter-spacing:.09em}
+label{display:block;font-size:12px;color:var(--muted);font-weight:750;margin:12px 0 4px}input,select{width:100%;min-height:46px;border:1px solid #b8c9dc;border-radius:10px;padding:10px;background:#fff;font-size:16px;color:var(--ink)}input:focus,select:focus{outline:2px solid #bfd9f8}
+button{min-height:48px;border:0;border-radius:11px;padding:10px 14px;font-size:15px;font-weight:750;cursor:pointer;touch-action:manipulation}button.primary{background:var(--blue);color:#fff}button.secondary{background:#e8f0fa;color:#174c88}button.ghost{background:#f0f3f7;color:var(--ink)}button:disabled{opacity:.45;cursor:not-allowed}.buttons{display:flex;flex-wrap:wrap;gap:9px;margin:11px 0}.buttons>*{flex:1 1 145px}.status{background:#eef2f7;border-radius:9px;padding:10px 12px;font-size:12px;white-space:pre-wrap;word-break:break-word;margin:8px 0}.status.good{background:#eaf7f0;color:var(--green)}.status.bad{background:#fff0e9;color:var(--warn)}.question{font-size:19px;font-weight:750;padding:15px;background:#ecf4fe;border-radius:13px;margin:14px 0}.note{font-size:12px;color:var(--muted)}.hint{padding:10px;border-radius:10px;background:#f3f6f9;margin-top:10px;font-size:14px}summary{cursor:pointer;font-size:13px;font-weight:650}.timer{font-weight:850;font-size:27px;font-variant-numeric:tabular-nums;text-align:center;margin:10px 0}.result{margin-top:12px;display:none}.result.visible{display:block}.result .field{margin:13px 0;border-bottom:1px solid var(--line);padding-bottom:12px}.result .field:last-child{border:0;margin-bottom:0;padding-bottom:0}.result .lbl{font-size:12px;color:var(--muted);font-weight:700}.result .eng{font-size:17px;font-weight:700;margin:5px 0}.result .jp{font-size:14px}.result .correct{color:var(--green)}audio{width:100%;margin:8px 0}.footer{font-size:12px;color:var(--muted)}
+@media(max-width:360px){main{padding:15px 10px 28px}section{padding:14px}.buttons>*{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">AI ENGLISH CHATBOT • PHASE 1</div>
+<h1>音声英会話 API連携テスト</h1>
+<p class="intro">1往復ずつ、音声認識 → 英文修正 → AIの返答を確認します。<strong>「APIへ送信」を押した場合だけ従量課金が発生します。</strong></p>
+<section>
+ <div class="step">STEP 1 / CONNECT</div><h2>① サーバーとの接続</h2>
+ <label for="url">Cloudflare WorkersのURL</label>
+ <input id="url" type="url" inputmode="url" autocomplete="url" placeholder="https://xxxx.yyyy.workers.dev">
+ <label for="pass">テスト専用パスコード（端末には保存されません）</label>
+ <input id="pass" type="password" autocomplete="off" placeholder="CloudflareのDEMO_PASSCODE">
+ <div class="buttons"><button id="connect" class="secondary" type="button">通信チェック（無料）</button></div>
+ <div class="status" id="connection" aria-live="polite">Cloudflareの準備後、URLを入力してください。</div>
+ <p class="note">接続先URLのみ端末に記憶します。パスコードやAPIキーは保存しません。</p>
+</section>
+<section>
+ <div class="step">STEP 2 / LESSON</div><h2>② テーマと質問を選択</h2>
+ <label for="lesson">テーマ</label><select id="lesson" disabled><option>通信チェック後に選択できます</option></select>
+ <label for="sample">会話例</label><select id="sample" disabled><option>―</option></select>
+ <div class="question" id="question" lang="en">まず通信チェックを実行してください。</div>
+ <div class="buttons"><button id="listenQ" type="button" class="secondary" disabled>▶ 質問を読み上げる</button></div>
+ <details id="hint" class="hint"><summary>困ったときは回答例を見る</summary><div id="hintText" lang="en" style="margin-top:7px"></div></details>
+</section>
+<section>
+ <div class="step">STEP 3 / RECORD</div><h2>③ 英語で答える（最大10秒）</h2>
+ <div id="timer" class="timer">00:00</div>
+ <div class="buttons"><button id="start" class="primary" type="button" disabled>🎙 録音開始</button><button id="stop" class="ghost" type="button" disabled>■ 録音終了</button></div>
+ <div id="recStatus" class="status" aria-live="polite">会話例を選んでください。</div>
+ <audio id="player" controls playsinline preload="none" aria-label="自分の録音の確認"></audio>
+ <div class="buttons"><button id="send" class="primary" type="button" disabled>APIへ送信（料金発生）</button></div>
+ <p class="note">録音した声を確認してから送信してください。音声は結果取得後にサーバーへ保存されません。送信する音声には個人情報を含めないでください。</p>
+</section>
+<section>
+ <div class="step">STEP 4 / FEEDBACK</div><h2>④ GPT-6 Lunaの英文修正結果</h2>
+ <div id="aiStatus" class="status" aria-live="polite">まだ送信していません。</div>
+ <div id="result" class="result">
+  <div class="field"><div class="lbl">文字起こし（AI音声認識）</div><div id="transcript" class="eng" lang="en"></div></div>
+  <div class="field"><div class="lbl">修正フレーズ</div><div id="correction" class="eng correct" lang="en"></div><div id="explanation" class="jp"></div><div class="buttons"><button type="button" id="listenCorrection" class="secondary">▶ 修正英文を聞く</button></div></div>
+  <div class="field"><div class="lbl">AIの返答・次の質問</div><div id="reply" class="eng" lang="en"></div><div class="buttons"><button type="button" id="listenReply" class="secondary">▶ AIの英語を聞く</button></div></div>
+ </div>
+</section>
+<p class="footer">Prototype 0.1 • Pixel 9a / Chrome, iPhone / Safari・Chrome向け。発音採点・連続会話履歴・Google Sheetsへの保存は未実装です。</p>
+</main>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const maxDuration=10;let allLessons=[],allSamples=[],audioBlob=null,recorder=null,stream=null,parts=[],timerId=null,autoTimer=null,started=0,playbackUrl=null,busy=false,lastResponse=null;
+const formats=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/mp4;codecs=mp4a.40.2'];
+const supported=typeof MediaRecorder!=='undefined'&&typeof MediaRecorder.isTypeSupported==='function';
+const mime=supported?(formats.find(x=>MediaRecorder.isTypeSupported(x))||''):'';
+function status(id,message,state=''){$(id).textContent=message;$(id).className='status'+(state?' '+state:'');}
+function base(){return $('url').value.trim().replace(/\/+$/,'');}
+function validUrl(){try{const x=new URL(base());return x.protocol==='https:'&&x.username===''&&x.password===''&&x.pathname==='/'&&x.search===''&&x.hash==='';}catch{return false;}}
+function setBusy(v){busy=v;$('send').disabled=v||!audioBlob||!allSamples.length||!$('pass').value;$('start').disabled=v||!allSamples.length||!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined';}
+function getSample(){return allSamples.find(x=>x.sample_id===$('sample').value);}
+function selectedLesson(){return allLessons.find(x=>x.lesson_id===$('lesson').value);}
+function clearAudio(){audioBlob=null;parts=[];lastResponse=null;setBusy(false);$('result').classList.remove('visible');$('stop').disabled=true;$('send').disabled=true;$('timer').textContent='00:00';if(playbackUrl){URL.revokeObjectURL(playbackUrl);playbackUrl=null;}$('player').removeAttribute('src');$('player').load();}
+function fillSamples(){const lid=$('lesson').value;const s=allSamples.filter(x=>x.lesson_id===lid);$('sample').replaceChildren(...s.map(x=>new Option(`${x.sample_id}：${x.scene_ja}`,x.sample_id)));$('sample').disabled=!s.length;onSelect();}
+function onSelect(){clearAudio();const s=getSample();$('question').textContent=s?s.ai_question_en:'―';$('hintText').textContent=s?s.model_student_answer_en:'';$('hint').open=false;$('listenQ').disabled=!s;status('recStatus',s?'質問を聞き、英語で答えてください。':'質問を選んでください。');status('aiStatus','まだ送信していません。');}
+async function connect(){if(!validUrl()){status('connection','URLは https://...workers.dev のように、ホスト名まで入力してください。','bad');return;}
+ $('connect').disabled=true;status('connection','通信中（API料金は発生しません）…');
+ try{const baseUrl=base();const health=await fetch(baseUrl+'/api/health',{cache:'no-store'});const healthObj=await health.json();if(!health.ok||!healthObj.ok)throw Error(healthObj.message||`HTTP ${health.status}`);
+ const lessonRes=await fetch(baseUrl+'/api/lessons',{cache:'no-store'});const data=await lessonRes.json();if(!lessonRes.ok||!data.ok)throw Error(data.message||`HTTP ${lessonRes.status}`);
+ allLessons=data.lessons||[];allSamples=data.samples||[];
+ $('lesson').replaceChildren(...allLessons.map(x=>new Option(`${x.lesson_id}：${x.theme_ja}`,x.lesson_id)));
+ $('lesson').disabled=!allLessons.length;fillSamples();localStorage.setItem('englishProtoWorkerUrl',baseUrl);
+ status('connection',`接続成功。${allLessons.length}テーマ・${allSamples.length}対話例を読み込みました。API設定: ${healthObj.configured?'確認済み':'未完了'}`,'good');
+ }catch(e){status('connection',`接続失敗: ${e.message}\nCloudflareのALLOWED_ORIGIN、公開URL、通信設定を確認してください。`,'bad');}finally{$('connect').disabled=false;}
+}
+function endRecording(){if(recorder&&recorder.state!=='inactive'){try{recorder.stop();}catch(e){status('recStatus',e.message,'bad');}}$('stop').disabled=true;}
+function cleanup(){clearInterval(timerId);clearTimeout(autoTimer);timerId=autoTimer=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}}
+async function startRecording(){if(busy)return;clearAudio();setBusy(true);status('recStatus','マイクの許可を確認しています…');
+ try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+ recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);parts=[];
+ recorder.ondataavailable=e=>{if(e.data?.size)parts.push(e.data)};
+ recorder.onerror=e=>{cleanup();setBusy(false);status('recStatus','録音エラー: '+(e.error?.message||'不明'),'bad')};
+ recorder.onstop=()=>{cleanup();audioBlob=new Blob(parts,{type:recorder.mimeType||mime||'application/octet-stream'});setBusy(false);$('stop').disabled=true;
+ if(!audioBlob.size){status('recStatus','録音データが空でした。','bad');return;}
+ playbackUrl=URL.createObjectURL(audioBlob);$('player').src=playbackUrl;$('player').load();
+ status('recStatus',`録音成功（${(audioBlob.size/1024).toFixed(1)} KB / ${audioBlob.type}）。再生してから送信してください。`,'good');
+ $('send').disabled=!$('pass').value||busy;};
+ recorder.start();started=Date.now();$('stop').disabled=false;status('recStatus','録音中…');timerId=setInterval(()=>{$('timer').textContent='00:'+String(Math.min(maxDuration,Math.floor((Date.now()-started)/1000))).padStart(2,'0');},150);autoTimer=setTimeout(endRecording,maxDuration*1000);
+ }catch(e){cleanup();setBusy(false);status('recStatus','録音開始に失敗しました: '+e.message,'bad');}
+}
+function speak(text){if(!('speechSynthesis'in window)){status('aiStatus','この端末はブラウザ読み上げに対応していません。','bad');return;}
+ window.speechSynthesis.cancel();const msg=new SpeechSynthesisUtterance(String(text||''));msg.lang='en-US';msg.rate=.88;msg.pitch=1;const voices=window.speechSynthesis.getVoices();const english=voices.find(v=>/^en[-_]/i.test(v.lang));if(english)msg.voice=english;window.speechSynthesis.speak(msg);}
+async function send(){const s=getSample();if(!s||!audioBlob||busy)return;if(!$('pass').value){status('aiStatus','テスト専用パスコードを入力してください。','bad');return;}
+ setBusy(true);$('result').classList.remove('visible');status('aiStatus','OpenAIに送信中。音声認識と英文修正を行っています…');
+ try{const f=new FormData();let ext=audioBlob.type.includes('webm')?'webm':audioBlob.type.includes('mp4')?'mp4':audioBlob.type.includes('wav')?'wav':'bin';f.append('sample_id',s.sample_id);f.append('audio',audioBlob,'speech.'+ext);
+ const res=await fetch(base()+'/api/turn',{method:'POST',headers:{'X-Demo-Passcode':$('pass').value},body:f});const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||`HTTP ${res.status}`);
+ lastResponse=data;$('transcript').textContent=data.transcript_en;$('correction').textContent=data.feedback.correction_needed?data.feedback.corrected_en:'修正不要：'+data.feedback.corrected_en;
+ $('explanation').textContent=data.feedback.explanation_ja;$('reply').textContent=data.feedback.reply_en;$('result').classList.add('visible');$('listenCorrection').disabled=!data.feedback.corrected_en;$('listenReply').disabled=!data.feedback.reply_en;
+ status('aiStatus','文字起こし・英文修正・AI返答が完了しました。','good');
+ }catch(e){status('aiStatus','API連携エラー: '+e.message,'bad');}finally{setBusy(false);}
+}
+$('url').value=localStorage.getItem('englishProtoWorkerUrl')||'';$('connect').addEventListener('click',connect);$('lesson').addEventListener('change',fillSamples);$('sample').addEventListener('change',onSelect);
+$('start').addEventListener('click',startRecording);$('stop').addEventListener('click',endRecording);$('send').addEventListener('click',send);
+$('pass').addEventListener('input',()=>{if(audioBlob&&!busy)$('send').disabled=!$('pass').value;});
+$('listenQ').addEventListener('click',()=>speak(getSample()?.ai_question_en));
+$('listenCorrection').addEventListener('click',()=>speak(lastResponse?.feedback.corrected_en));
+$('listenReply').addEventListener('click',()=>speak(lastResponse?.feedback.reply_en));
+})();
+</script>
+</body>
+</html>
