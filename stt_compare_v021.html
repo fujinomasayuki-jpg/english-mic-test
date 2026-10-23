@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AI英会話 | 同一音声 A/B検証 v0.2.1</title>
+<style>
+:root{--blue:#155fbd;--ink:#153350;--gray:#59738c;--bg:#eff4f9;--bd:#d7e3f0}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Noto Sans JP',system-ui,sans-serif;line-height:1.6}
+main{max-width:670px;margin:auto;padding:20px 13px 52px}h1{font-size:23px;margin:4px 0 6px}h2{font-size:18px;margin:0 0 12px}.card{border:1px solid var(--bd);border-radius:18px;background:white;padding:18px;margin-top:16px;box-shadow:0 3px 14px #18385609}
+label{display:block;color:var(--gray);font-size:13px;font-weight:700;margin:10px 0 5px}input,select,textarea{display:block;width:100%;font-size:16px;padding:10px;border:1px solid #adc4d9;border-radius:9px;background:#fff;color:var(--ink);min-height:45px}
+button{font-size:16px;font-weight:750;background:#e7effb;border:0;border-radius:10px;color:#145397;padding:12px;min-height:46px}button.primary{background:var(--blue);color:white}button:disabled{opacity:.4}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row{display:flex;gap:9px;flex-wrap:wrap}.row button{flex:1}.subtle{font-size:12px;color:var(--gray)}.status{background:#edf3fb;border-radius:9px;margin:10px 0;padding:9px 12px;overflow-wrap:anywhere;white-space:pre-wrap;font-size:13px}.status.success{background:#e4f6ec;color:#126b42}.status.error{background:#fff0ee;color:#91332f}
+.result{padding:13px;background:#f0f5fb;border-radius:12px;min-height:90px;overflow-wrap:anywhere}.result p{font-size:17px;font-weight:700;margin:6px 0}.hidden{display:none}audio{width:100%;margin-top:9px}
+</style>
+</head>
+<body><main>
+<div class="subtle">AI ENGLISH CHATBOT • v0.2.1 / TEACHER-ONLY A/B TEST</div>
+<h1>同じ音声で文字起こしを比較</h1>
+<div class="subtle">録音を1回行い、旧設定と新設定に同一の音声ファイルを送ります。**音声認識APIが2回呼ばれ、料金が発生します。** GPTによる英文修正は呼び出しません。</div>
+<section class="card"><h2>① 接続設定</h2>
+<label for="url">Cloudflare Workers URL</label><input id="url" type="url" placeholder="https://english-tutor-test.***.workers.dev" autocomplete="url">
+<label for="pass">教員用パスコード</label><input id="pass" type="password" autocomplete="off">
+<div class="row" style="margin-top:12px"><button type="button" id="connect">通信チェック（無料）</button></div>
+<div class="status" id="connectionStatus">接続後に教材を選択できます。</div></section>
+<section class="card"><h2>② 録音条件を選択</h2>
+<label for="lesson">教材テーマ</label><select id="lesson" disabled></select>
+<label for="sample">例文（質問）</label><select id="sample" disabled></select>
+<label for="context">語彙ヒントの種類（新設定のみ）</label><select id="context">
+<option value="auto">教材の最初の質問に合わせて自動</option>
+<option value="beverage">飲み物（mugicha / matcha）</option>
+<option value="meal">食事（salad / lunch box）</option>
+<option value="general">一般的な短い返答（語彙ヒントなし）</option></select>
+<label for="expected">意図した発話（記録用・APIには送りません）</label><input id="expected" placeholder="例：I drink mugicha.">
+</section>
+<section class="card"><h2>③ 録音して比較</h2>
+<div class="row"><button id="start" class="primary" disabled>🎙 録音開始</button><button id="stop" disabled>■ 録音終了</button></div>
+<audio id="player" controls playsinline style="display:none"></audio>
+<div class="row" style="margin-top:12px"><button id="retry" disabled>録音をやり直す</button><button id="compare" class="primary" disabled>同一音声で比較（STT×2回・料金発生）</button></div>
+<div class="status" id="state">録音は最大10秒。録音音声はブラウザ内だけに保持されます。</div>
+</section>
+<section class="card hidden" id="results"><h2>④ 比較結果</h2>
+<div class="grid"><div class="result"><div class="subtle">旧v0.2の認識</div><p id="baseline"></p></div>
+<div class="result"><div class="subtle">新v0.2.1の認識</div><p id="hinted"></p></div></div>
+<p id="terms" class="subtle"></p><p class="subtle">違いが出ても、改善とは限りません。意図した発話と比べ、置き換え・追加・脱落を確認してください。</p>
+<button id="copy">比較結果をコピー</button></section>
+<p class="subtle" style="margin-top:14px">教員用テストページです。音声はOpenAI APIへ送信されますが、Workerでは保存しません。パスコードやAPIキーをGitHubに記載しないでください。学生へのURL公開はまだ行いません。</p>
+</main><script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const formats=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/mp4;codecs=mp4a.40.2'];
+let lessons=[],samples=[],base='',blob=null,recorder=null,stream=null,chunks=[],timeout=null,isRecording=false,isBusy=false,blobUrl='',last=null;
+const status=(message,type='')=>{let el=$('state');el.textContent=message;el.className='status'+(type?' '+type:'')};
+function validUrl(){try{let u=new URL($('url').value.trim().replace(/\/+$/,''));return u.protocol==='https:'&&!u.username&&!u.password&&u.pathname==='/'&&!u.search&&!u.hash}catch{return false}}
+function displayButtons(){let ready=Boolean(base&&!isBusy&&!isRecording&&navigator.mediaDevices?.getUserMedia&&typeof MediaRecorder!=='undefined');$('start').disabled=!ready;$('stop').disabled=!isRecording;$('retry').disabled=!blob||isBusy||isRecording;$('compare').disabled=!blob||isBusy||isRecording||!$('pass').value||!base;}
+function fillSamples(){let lid=$('lesson').value;let selected=samples.filter(s=>s.lesson_id===lid);$('sample').replaceChildren(...selected.map(s=>new Option(s.sample_id+'：'+s.scene_ja+'／'+s.ai_question_en,s.sample_id)));}
+async function connect(){if(!validUrl()){$('connectionStatus').textContent='URLは https://...workers.dev のように入力してください。';return}base=$('url').value.trim().replace(/\/+$/,'');
+try{let [h,l]=await Promise.all([fetch(base+'/api/health',{cache:'no-store'}),fetch(base+'/api/lessons',{cache:'no-store'})]);let hj=await h.json(),lj=await l.json();if(!hj.ok||!lj.ok)throw Error(hj.message||lj.message||'通信エラー');lessons=lj.lessons;samples=lj.samples;$('lesson').replaceChildren(...lessons.map(l=>new Option(l.theme_ja,l.lesson_id)));$('lesson').disabled=false;$('sample').disabled=false;fillSamples();$('connectionStatus').textContent='接続成功：'+lessons.length+'テーマ・'+samples.length+'例。';$('connectionStatus').className='status success';try{localStorage.setItem('englishProtoWorkerUrl',base)}catch(_){}}
+catch(e){base='';$('connectionStatus').textContent='接続失敗：'+e.message;$('connectionStatus').className='status error'}displayButtons();}
+function cleanAudio(){if(blobUrl){URL.revokeObjectURL(blobUrl);blobUrl=''}blob=null;$('player').removeAttribute('src');$('player').style.display='none';displayButtons()}
+async function start(){cleanAudio();isRecording=true;displayButtons();status('マイク権限を確認しています…');try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});const mime=formats.find(m=>MediaRecorder.isTypeSupported(m))||'';recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{if(timeout)clearTimeout(timeout);stream?.getTracks().forEach(x=>x.stop());stream=null;isRecording=false;blob=new Blob(chunks,{type:recorder.mimeType||mime||'audio/webm'});if(blob.size){blobUrl=URL.createObjectURL(blob);$('player').src=blobUrl;$('player').style.display='block';status('録音完了：'+(blob.size/1024).toFixed(1)+'KB。音声を確認して比較してください。','success')}else status('録音に失敗しました。','error');displayButtons()};recorder.start();status('録音中…最大10秒');timeout=setTimeout(stop,10000);}catch(e){isRecording=false;stream?.getTracks().forEach(x=>x.stop());stream=null;status('録音エラー：'+e.message,'error');displayButtons()}}
+function stop(){if(timeout){clearTimeout(timeout);timeout=null}if(recorder?.state==='recording')recorder.stop()}
+async function compare(){if(!blob||isBusy||!base)return;isBusy=true;displayButtons();status('同じ音声を旧・新設定で解析中…（2回分のSTT課金）');const fd=new FormData();const ext=blob.type.includes('webm')?'webm':blob.type.includes('mp4')?'mp4':blob.type.includes('wav')?'wav':'mp3';fd.append('audio',blob,'speech.'+ext);fd.append('sample_id',$('sample').value);fd.append('context',$('context').value);
+try{let r=await fetch(base+'/api/stt-compare',{method:'POST',headers:{'X-Demo-Passcode':$('pass').value},body:fd});let j=await r.json();if(!r.ok||!j.ok)throw Error(j.message||'HTTP '+r.status);last={expected:$('expected').value,baseline:j.baseline_en,hinted:j.hinted_en,terms:j.keywords_used};$('baseline').textContent=j.baseline_en||'（認識なし）';$('hinted').textContent=j.hinted_en||'（認識なし）';$('terms').textContent='新設定の語彙候補：'+(j.keywords_used?.join(' / ')||'なし');$('results').classList.remove('hidden');status('比較が終了しました。両結果を発話内容と照合してください。','success')}catch(e){status('比較失敗：'+e.message,'error')}finally{isBusy=false;displayButtons()}}
+$('copy').addEventListener('click',()=>{if(last){navigator.clipboard?.writeText(['意図した発話：'+last.expected,'旧v0.2：'+last.baseline,'新v0.2.1：'+last.hinted,'語彙ヒント：'+last.terms.join(', ')].join('\n'))}});
+$('start').addEventListener('click',start);$('stop').addEventListener('click',stop);$('retry').addEventListener('click',()=>{cleanAudio();$('results').classList.add('hidden');status('録音をやり直してください。')});$('compare').addEventListener('click',compare);$('connect').addEventListener('click',connect);$('lesson').addEventListener('change',fillSamples);$('pass').addEventListener('input',displayButtons);
+try{$('url').value=localStorage.getItem('englishProtoWorkerUrl')||''}catch(_){}window.addEventListener('pagehide',()=>{stop();stream?.getTracks().forEach(x=>x.stop());if(blobUrl)URL.revokeObjectURL(blobUrl)});displayButtons();
+})();
+</script></body></html>
