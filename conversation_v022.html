@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>AI英会話 | 連続会話 v0.2.2（英文修正・表示改善版）</title>
+<style>
+:root{--navy:#173453;--blue:#1663ba;--muted:#56728b;--line:#dbe5f0;--bg:#edf3f9;--green:#137447;--red:#9d3940;--soft:#e8f0fa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--navy);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;line-height:1.55}
+main{max-width:650px;margin:0 auto;padding:18px 12px calc(30px + env(safe-area-inset-bottom))}.top{padding:7px 5px 16px}.eyebrow{font-size:11px;font-weight:850;color:var(--blue);letter-spacing:.11em}h1{font-size:25px;margin:5px 0}h2{font-size:17px;margin:0 0 9px}.muted{font-size:12px;color:var(--muted)}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:17px;margin-bottom:14px;box-shadow:0 4px 16px #1734530a}
+label{display:block;margin:11px 0 5px;font-size:12px;color:var(--muted);font-weight:800}input,select{min-height:47px;border-radius:10px;border:1px solid #b4c8dc;width:100%;font-size:16px;padding:10px;color:var(--navy);background:#fff}input:focus,select:focus{outline:2px solid #a9d1ff;outline-offset:1px}input[type=checkbox]{width:20px;min-height:20px;accent-color:var(--blue)}
+button{border:0;border-radius:12px;padding:11px 13px;min-height:47px;background:var(--soft);color:#15538e;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation}button.primary{background:var(--blue);color:#fff}button.ghost{background:#f1f4f7;color:var(--navy)}button.danger{background:#fff0f0;color:#943541}button:disabled{opacity:.45;cursor:not-allowed}.flex{display:flex;flex-wrap:wrap;gap:9px}.flex>button{flex:1 1 145px}.pill{display:inline-block;font-size:12px;font-weight:750;border-radius:100px;background:#e4effc;padding:4px 10px;color:#145899}.status{font-size:12px;padding:10px 12px;border-radius:11px;background:#eef2f7;white-space:pre-wrap;word-break:break-word;margin-top:10px}.status.good{background:#eaf7f0;color:var(--green)}.status.bad{background:#ffefee;color:var(--red)}.status.warn{background:#fff7df;color:#74520e}
+.conversation{min-height:170px;max-height:55vh;overflow-y:auto;overscroll-behavior:contain;padding:4px 2px 10px;scroll-behavior:smooth}.bubble-row{display:flex;flex-direction:column;margin:11px 0;align-items:flex-start}.bubble-row.student{align-items:flex-end}.bubble{max-width:91%;border-radius:15px;padding:12px 13px;background:#edf2f7;overflow-wrap:anywhere}.student .bubble{background:#dceafb;border-bottom-right-radius:3px}.ai .bubble{border-bottom-left-radius:3px}.speaker{font-size:11px;font-weight:850;color:var(--muted);margin-bottom:3px}.english{font-weight:700;font-size:17px;line-height:1.5}.underbubble{display:flex;gap:7px;flex-wrap:wrap;margin-top:6px}.small-button{padding:6px 10px;min-height:34px;font-size:12px}.correction{margin-top:6px;padding:9px 10px;background:#e8f6ee;color:#145e40;border-radius:10px;font-size:12px;max-width:91%;overflow-wrap:anywhere}.correction b{font-size:15px}.progress{height:8px;border-radius:15px;background:#e6edf5;overflow:hidden;margin:8px 0}.progress-fill{height:100%;width:0;background:#1b75c9;transition:width .3s}.formrow{display:flex;gap:10px;align-items:center}.formrow>label{flex:1;margin:4px 0}.timer{font-variant-numeric:tabular-nums;text-align:center;font-size:30px;font-weight:850;margin:12px 0 5px}.hint{padding:10px;background:#f3f7fa;border-radius:10px;font-size:13px}.hint summary{cursor:pointer;font-weight:750}audio{width:100%;margin:8px 0}.hidden{display:none!important}.footer{font-size:11px;color:var(--muted);padding:0 5px;line-height:1.65}
+@media(max-width:360px){.card{padding:12px}main{padding-left:9px;padding-right:9px}.flex>button{flex:1 1 100%}}
+
+/* v0.2.2: Keep the entire conversation readable after the session is finished.
+   Only the recording controls disappear; all AI/user messages remain accessible. */
+.session-completed .conversation{max-height:none;overflow:visible;scroll-behavior:auto}
+.session-completed #recordPanel{display:none}
+</style>
+</head>
+<body>
+<main>
+<header class="top"><div class="eyebrow">AI ENGLISH CHATBOT • PHASE 1 / V0.2.2</div><h1>英語で話してみよう</h1><div class="muted">会話モード：5〜10往復・音声入力・自然な返答・必要なときだけ短い修正</div></header>
+<section class="card" id="configCard">
+  <h2>① サーバーとの接続</h2>
+  <label for="url">Cloudflare Workers URL</label><input type="url" id="url" inputmode="url" placeholder="https://english-tutor-test.***.workers.dev" autocomplete="url">
+  <label for="pass">教員用テストパスコード（保存されません）</label><input type="password" id="pass" autocomplete="off" placeholder="Cloudflare の DEMO_PASSCODE">
+  <div class="flex" style="margin-top:12px"><button type="button" id="connect">通信チェック（無料）</button></div>
+  <div id="connectionStatus" class="status" aria-live="polite">通信チェック後に教材を選択できます。</div>
+</section>
+<section class="card" id="setupCard">
+  <h2>② 会話テーマを選択</h2>
+  <label for="lesson">テーマ</label><select id="lesson" disabled><option>まず通信チェックしてください</option></select>
+  <label for="sample">会話の開始シーン</label><select id="sample" disabled><option>―</option></select>
+  <label for="limit">1回の会話の目標</label>
+  <select id="limit"><option value="5">5往復（最初の検証に推奨）</option><option value="10">10往復</option></select>
+  <div class="formrow" style="margin:12px 0"><input id="autoVoice" type="checkbox" checked><label for="autoVoice">AIの英語を自動で読み上げる（端末によって手動再生が必要です）</label></div>
+  <div class="hint"><details><summary>ヒント：最初の質問への回答例</summary><p id="hintText" lang="en"></p></details></div>
+  <div class="flex" style="margin-top:13px"><button id="begin" class="primary" disabled>▶ 会話を開始</button></div>
+</section>
+<section class="card hidden" id="sessionCard">
+  <div class="flex" style="align-items:center;justify-content:space-between;margin-bottom:7px"><h2 style="margin:0">③ 英会話</h2><span id="counter" class="pill">0 / 5 往復</span></div>
+  <div class="progress"><div id="progressFill" class="progress-fill"></div></div>
+  <div id="chat" class="conversation" role="log" aria-live="polite" aria-label="会話履歴"></div>
+  <div id="recordPanel">
+  <div id="speakStatus" class="status">録音開始を押して英語で答えてください。</div>
+  <div id="timer" class="timer">00:00</div>
+  <div class="flex"><button id="start" class="primary" disabled>🎙 録音開始</button><button id="stop" class="ghost" disabled>■ 録音終了</button></div>
+  <audio id="player" controls playsinline preload="none" aria-label="録音音声の再生" style="display:none"></audio>
+  <div class="flex"><button id="send" class="primary" disabled>この発話を送信（料金発生）</button><button id="retry" class="ghost" disabled>録音し直す</button></div>
+  <div class="flex" style="margin-top:11px"><button id="end" class="danger">■ 会話を終了</button></div>
+  <p class="muted">音声認識で文法が自動補正されることがあります。発音の精密な採点は行いません。送信した音声には個人情報を含めないでください。</p>
+  </div>
+</section>
+<section class="card hidden" id="completedCard">
+ <h2>会話を終了しました</h2><p id="completedMessage">お疲れさまでした。</p>
+ <div class="flex"><button id="restart" class="primary">別の会話を始める</button></div>
+ <p class="muted">会話履歴はこのページを閉じると消えます。Google Sheetsへの保存はありません。</p>
+</section>
+<p class="footer">v0.2.2 教員専用検証版（音声認識ヒント＋意味保持指示あり）。v0.2.1は別URLで保全しています。既存のv0.1はそのまま残します。会話はブラウザのメモリ上で保持し、各ターンの文字起こしと直前までの会話文脈をGPTへ送信します。音声はOpenAIによる処理に送信されますが、このアプリからGoogle Sheets等への保存は行いません。<br>API利用には従量料金が発生します。学生への公開前に利用者認証・レート制限・プライバシー確認が必要です。</p>
+</main>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const LIMIT_SEC=10;
+const mimeTypes=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/mp4;codecs=mp4a.40.2'];
+const supported=typeof MediaRecorder!=='undefined'&&typeof MediaRecorder.isTypeSupported==='function';
+const preferredMime=supported?(mimeTypes.find(t=>MediaRecorder.isTypeSupported(t))||''):'';
+let lessons=[],samples=[],active=false,connected=false,connectedUrl='',sample=null,history=[],turnLimit=5,currentQuestion='',pendingAudio=null,recorder=null,stream=null,parts=[],tick=null,autoStop=null,started=0,blobUrl=null,networkBusy=false,isRecording=false,finished=false,voiceAvailable=('speechSynthesis'in window);
+const state={get isActive(){return active;},get canRecord(){return active&&!finished&&!networkBusy&&!isRecording&&!!sample&&!!navigator.mediaDevices?.getUserMedia&&typeof MediaRecorder!=='undefined';}};
+function setStatus(msg,style=''){const el=$('speakStatus');el.textContent=msg;el.className='status'+(style?' '+style:'');}
+function connectedStatus(msg,style=''){const el=$('connectionStatus');el.textContent=msg;el.className='status'+(style?' '+style:'');}
+function urlBase(){return $('url').value.trim().replace(/\/+$/,'')}
+function validUrl(){try{const u=new URL(urlBase());return u.protocol==='https:'&&!u.username&&!u.password&&u.pathname==='/'&&!u.search&&!u.hash;}catch{return false}}
+function renderButtons(){ $('start').disabled=!state.canRecord;$('stop').disabled=!isRecording;$('send').disabled=!active||finished||networkBusy||isRecording||!pendingAudio||!$('pass').value; $('retry').disabled=!active||finished||networkBusy||isRecording||!pendingAudio;$('end').disabled=!active||networkBusy||isRecording; $('lesson').disabled=!connected||active;$('sample').disabled=!connected||active;$('limit').disabled=active;$('begin').disabled=!connected||active||!$('pass').value;$('connect').disabled=active||networkBusy; }
+function terminateMedia(){clearInterval(tick);clearTimeout(autoStop);tick=autoStop=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}}
+function clearAudio(){pendingAudio=null;parts=[];if(blobUrl){URL.revokeObjectURL(blobUrl);blobUrl=null;}$('player').removeAttribute('src');$('player').style.display='none';$('player').load();$('timer').textContent='00:00';renderButtons();}
+function stopSpeech(){if(voiceAvailable)window.speechSynthesis.cancel()}
+function speak(text){if(!voiceAvailable)return;stopSpeech();const utt=new SpeechSynthesisUtterance(String(text||''));utt.lang='en-US';utt.rate=.88;const en=window.speechSynthesis.getVoices().find(v=>/^en(?:-|_)/i.test(v.lang));if(en)utt.voice=en;window.speechSynthesis.speak(utt);}
+function maybeSpeak(text){if($('autoVoice').checked)speak(text)}
+function el(tag,className,text){const e=document.createElement(tag);if(className)e.className=className;if(text!==undefined)e.textContent=text;return e;}
+function chatBubble(who,text,options={}){
+ const row=el('div','bubble-row '+(who==='student'?'student':'ai'));
+ const bubble=el('div','bubble');bubble.append(el('div','speaker',who==='student'?'YOU':'AI'));
+ const speech=el('div','english',text);speech.lang='en';bubble.append(speech);row.append(bubble);
+ if(options.speak){const controls=el('div','underbubble');const listen=el('button','small-button','▶ 英語を聞く');listen.type='button';listen.addEventListener('click',()=>speak(text));controls.append(listen);row.append(controls);}
+ if(options.feedback?.correction_needed){const fb=el('div','correction');fb.append(el('div','', 'より自然な言い方（参考）'));const correct=el('b','',options.feedback.corrected_en);correct.lang='en';fb.append(correct);if(options.feedback.explanation_ja)fb.append(el('div','',options.feedback.explanation_ja));const button=el('button','small-button','▶ 修正文を聞く');button.type='button';button.addEventListener('click',()=>speak(options.feedback.corrected_en));fb.append(button);row.append(fb);}
+ $('chat').append(row);$('chat').scrollTop=$('chat').scrollHeight;
+}
+function setProgress(){const n=history.length;$('counter').textContent=`${n} / ${turnLimit} 往復`;$('progressFill').style.width=(n/turnLimit*100)+'%'}
+function fillSamples(){const lid=$('lesson').value;const options=samples.filter(s=>s.lesson_id===lid);$('sample').replaceChildren(...options.map(s=>new Option(`${s.sample_id}：${s.scene_ja}`,s.sample_id)));$('sample').disabled=!options.length;updateHint();renderButtons();}
+function updateHint(){const s=samples.find(x=>x.sample_id===$('sample').value);$('hintText').textContent=s?.model_student_answer_en||'';}
+async function connect(){if(!validUrl()){connectedStatus('URLは https://...workers.dev まで正しく入力してください。','bad');return;}
+ connectedStatus('通信中（OpenAIの料金は発生しません）…');$('connect').disabled=true;
+ try{const base=urlBase();const [h,l]=await Promise.all([fetch(base+'/api/health',{cache:'no-store'}),fetch(base+'/api/lessons',{cache:'no-store'})]);const hj=await h.json();const lj=await l.json();if(!h.ok||!hj.ok||!l.ok||!lj.ok)throw Error(hj.message||lj.message||`HTTP ${h.status}/${l.status}`);
+ lessons=lj.lessons||[];samples=lj.samples||[];if(!lessons.length||!samples.length)throw Error('教材が読み込めません。');connected=true;connectedUrl=base;$('lesson').replaceChildren(...lessons.map(t=>new Option(`${t.lesson_id}：${t.theme_ja}`,t.lesson_id)));fillSamples();try{localStorage.setItem('englishProtoWorkerUrl',base);}catch(_){}
+ connectedStatus(`接続成功：${lessons.length}テーマ・${samples.length}対話例。APIキーの登録：${hj.configured?'確認済み':'未完了'}。`,'good');
+ }catch(e){connected=false;connectedUrl='';connectedStatus('接続失敗：'+e.message+'\nALLOWED_ORIGIN、公開URL、WorkerのDeployを確認してください。','bad');}finally{renderButtons();}}
+function begin(){if(!connected||!$('pass').value||active)return;sample=samples.find(x=>x.sample_id===$('sample').value);if(!sample)return;turnLimit=Number($('limit').value);history=[];finished=false;active=true;currentQuestion=sample.ai_question_en;clearAudio();stopSpeech();$('chat').replaceChildren();$('sessionCard').classList.remove('hidden','session-completed');$('completedCard').classList.add('hidden');setProgress();chatBubble('ai',currentQuestion,{speak:true});setStatus('質問に答えてください。録音は最大10秒です。');renderButtons();$('sessionCard').scrollIntoView({behavior:'smooth',block:'start'});maybeSpeak(currentQuestion);}
+function finish(reason){active=false;finished=true;stopSpeech();terminateMedia();isRecording=false;clearAudio();$('sessionCard').classList.add('session-completed');$('completedCard').classList.remove('hidden');$('completedMessage').textContent=reason||`${history.length}往復の会話を終えました。`;setStatus('会話を終了しました。','good');renderButtons();requestAnimationFrame(()=>$('chat').lastElementChild?.scrollIntoView({behavior:'smooth',block:'nearest'}));}
+async function startRecord(){if(!state.canRecord)return;stopSpeech();clearAudio();isRecording=true;setStatus('マイクの許可を確認しています…');renderButtons();
+ try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});if(!isRecording){terminateMedia();return;}recorder=preferredMime?new MediaRecorder(stream,{mimeType:preferredMime}):new MediaRecorder(stream);parts=[];
+ recorder.ondataavailable=e=>{if(e.data?.size)parts.push(e.data)};
+ recorder.onerror=e=>{terminateMedia();isRecording=false;setStatus('録音エラー：'+(e.error?.message||'不明'),'bad');renderButtons();};
+ recorder.onstop=()=>{terminateMedia();isRecording=false;pendingAudio=new Blob(parts,{type:recorder.mimeType||preferredMime||'application/octet-stream'});if(!pendingAudio.size){setStatus('音声が録音されませんでした。','bad');renderButtons();return;}
+ blobUrl=URL.createObjectURL(pendingAudio);$('player').src=blobUrl;$('player').style.display='block';$('player').load();setStatus(`録音完了（${(pendingAudio.size/1024).toFixed(1)}KB）。確認後に送信してください。`,'good');renderButtons();};
+ recorder.start();started=Date.now();setStatus('録音中…');tick=setInterval(()=>{$('timer').textContent='00:'+String(Math.min(LIMIT_SEC,Math.floor((Date.now()-started)/1000))).padStart(2,'0')},150);autoStop=setTimeout(stopRecord,LIMIT_SEC*1000);
+ }catch(e){terminateMedia();isRecording=false;setStatus('録音できません：'+e.message,'bad');renderButtons();}}
+function stopRecord(){if(recorder&&recorder.state!=='inactive'){try{recorder.stop()}catch(e){terminateMedia();isRecording=false;setStatus('録音終了エラー：'+e.message,'bad');renderButtons();}}}
+async function send(){if(!active||finished||networkBusy||!pendingAudio||isRecording||!sample)return;const pass=$('pass').value;if(!pass){setStatus('パスコードを入力してください。','bad');return;}
+ networkBusy=true;renderButtons();setStatus('音声認識とGPT-6 Lunaの返答を処理しています…');
+ try{const data=new FormData();const ext=pendingAudio.type.includes('webm')?'webm':pendingAudio.type.includes('mp4')?'mp4':pendingAudio.type.includes('wav')?'wav':'bin';data.append('audio',pendingAudio,'speech.'+ext);data.append('sample_id',sample.sample_id);data.append('max_turns',String(turnLimit));data.append('history',JSON.stringify(history));
+ const res=await fetch(connectedUrl+'/api/conversation-v022',{method:'POST',headers:{'X-Demo-Passcode':pass},body:data});const json=await res.json();if(!res.ok||!json.ok)throw Error(json.message||`HTTP ${res.status}`);
+ if(json.turn_index!==history.length+1)throw Error('応答の会話番号が一致しません。');
+ const fb=json.feedback,recognized=json.transcript_en;
+ chatBubble('student',recognized,{feedback:fb});chatBubble('ai',fb.reply_en,{speak:true});
+ history.push({question_en:currentQuestion,student_en:recognized,reply_en:fb.reply_en});currentQuestion=fb.reply_en;setProgress();clearAudio();
+ if(json.finished){finish(`${history.length}往復の会話が完了しました。`);}
+ else{setStatus(`返答を受け取りました。次の質問に答えてください。（${history.length}/${turnLimit}往復）`,'good');renderButtons();}
+ maybeSpeak(fb.reply_en);
+ }catch(e){setStatus('送信エラー：'+e.message+'\n通信途中で失敗した場合、再送信すると料金が再発生する場合があります。','bad');}
+ finally{networkBusy=false;renderButtons();}
+}
+function restart(){stopSpeech();$('completedCard').classList.add('hidden');$('sessionCard').classList.add('hidden');$('sessionCard').classList.remove('session-completed');$('chat').replaceChildren();history=[];active=false;finished=false;pendingAudio=null;renderButtons();$('setupCard').scrollIntoView({behavior:'smooth'});}
+try{$('url').value=localStorage.getItem('englishProtoWorkerUrl')||'';}catch(_){}
+$('connect').addEventListener('click',connect);$('lesson').addEventListener('change',fillSamples);$('sample').addEventListener('change',updateHint);$('pass').addEventListener('input',renderButtons);
+$('begin').addEventListener('click',begin);$('start').addEventListener('click',startRecord);$('stop').addEventListener('click',stopRecord);$('send').addEventListener('click',send);$('retry').addEventListener('click',()=>{clearAudio();setStatus('録音し直してください。');});
+$('end').addEventListener('click',()=>finish(`${history.length}往復で終了しました。`));$('restart').addEventListener('click',restart);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopSpeech();});
+window.addEventListener('pagehide',()=>{stopSpeech();terminateMedia();if(blobUrl)URL.revokeObjectURL(blobUrl);});
+renderButtons();
+})();
+</script>
+</body>
+</html>
