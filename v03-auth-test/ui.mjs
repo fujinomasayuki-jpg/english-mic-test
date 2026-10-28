@@ -9,6 +9,7 @@ export function createStudentView(doc) {
     'setup-panel', 'setup-message', 'waiting-panel', 'login-panel', 'login-button',
     'class-panel', 'class-select', 'user-email', 'retry-button', 'logout-button',
     'code-panel', 'code-form', 'code-input', 'code-submit', 'complete-panel',
+    'conversation-link',
     'status-message',
   ].map(id => [id, element(id)]));
   const setShown = (id, shown) => { refs[id].hidden = !shown; };
@@ -31,6 +32,12 @@ export function createStudentView(doc) {
     setShown('class-panel', authenticated);
     setShown('code-panel', ['code_required','enrolling'].includes(stage));
     setShown('complete-panel', stage === 'enrolled');
+    setShown('conversation-link', stage === 'enrolled');
+    if (stage === 'enrolled') {
+      refs['conversation-link'].href = './conversation-test.html?class_id=' + encodeURIComponent(state.classId);
+    } else {
+      refs['conversation-link'].removeAttribute('href');
+    }
     setShown('status-message', Boolean(state.message));
     refs['status-message'].textContent = state.message;
     refs['user-email'].textContent = state.email;

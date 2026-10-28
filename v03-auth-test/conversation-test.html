@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>AI英会話 v0.3｜認証後の画面接続テスト</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./preview-app.mjs"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <span class="eyebrow">AI ENGLISH CONVERSATION · v0.3 / UNIT 2-A</span>
+      <h1>英会話画面への接続テスト</h1>
+      <p>登録済みの受講クラスを再確認してから、試験用画面を表示する。</p>
+      <span class="preview-badge">開発・検証用：学生公開前</span>
+    </header>
+
+    <section class="panel" aria-live="polite">
+      <h2>認証・登録状態</h2>
+      <p id="preview-status" class="status-message">大学Googleアカウントと受講クラスを確認中…</p>
+    </section>
+
+    <section class="panel" id="preview-allowed" hidden aria-labelledby="preview-title">
+      <div class="success-mark" aria-hidden="true">✓</div>
+      <h2 id="preview-title">登録済み学生として接続できた</h2>
+      <p>登録クラス：<strong id="preview-class"></strong></p>
+      <p>認証情報はこのページでも再確認した。実際の会話機能はまだ未接続だ。</p>
+
+      <div class="notice notice-warning" role="note">
+        <strong>この段階では料金は発生しない</strong>
+        <p>マイク録音、文字起こし、AIの文法訂正・返答、課題や利用回数の消費は実行しない。</p>
+      </div>
+
+      <div class="preview-conversation" aria-label="今後の英会話画面の構成例">
+        <p class="preview-conversation-label">今後の表示予定</p>
+        <p>課題：教員から配信された課題を表示予定</p>
+        <p>会話：標準5往復</p>
+        <button class="button button-primary" type="button" disabled>▶ 会話を開始（未実装）</button>
+      </div>
+      <p class="helper">認証の確認が済んだら、認証画面へ戻っても構わない。</p>
+    </section>
+
+    <section class="panel" id="preview-denied" hidden>
+      <h2>このクラスには進めない</h2>
+      <p>大学Googleアカウントへのログインと、対象クラスの登録状態を認証画面で確認してほしい。</p>
+    </section>
+
+    <p><a class="button button-outline preview-back" href="./index.html">認証画面へ戻る</a></p>
+    <footer>Unit 2-A STEP 1（認証・画面表示のみ）。公開HTMLの表示制御は権限の代わりにはならない。今後の会話・課題APIでもWorker側で本人と所属クラスを毎回検証する。</footer>
+  </main>
+</body>
+</html>
