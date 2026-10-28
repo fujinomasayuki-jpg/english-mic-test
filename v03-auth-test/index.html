@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>AI英会話 v0.3｜大学アカウント認証</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <span class="eyebrow">AI ENGLISH CONVERSATION · v0.3</span>
+      <h1>授業用アカウント認証</h1>
+      <p>大学のGoogleアカウントを使って、担当クラスの初回登録を行う。</p>
+      <span class="preview-badge">開発・検証用：学生公開前</span>
+    </header>
+
+    <section class="panel" aria-labelledby="steps-title">
+      <h2 id="steps-title">登録の進め方</h2>
+      <ol class="steps">
+        <li>大学Googleアカウントでログイン</li>
+        <li>受講クラスを選択</li>
+        <li>初回のみ16文字の認証コードを入力</li>
+      </ol>
+    </section>
+
+    <section class="panel" id="setup-panel" aria-label="接続設定" hidden>
+      <div class="notice notice-warning" role="alert">
+        <strong>接続設定待ち</strong>
+        <p id="setup-message">認証サービスの設定が完了していない。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="waiting-panel" aria-live="polite">
+      <p class="loading-line">認証状態を確認中…</p>
+    </section>
+
+    <section class="panel" id="login-panel" aria-labelledby="login-title" hidden>
+      <div class="panel-heading"><span class="step-index">1</span><h2 id="login-title">Googleでログイン</h2></div>
+      <p>必ず大学から指定されたGoogleアカウントを選択してほしい。</p>
+      <button class="button button-primary" type="button" id="login-button">大学Googleアカウントでログイン</button>
+      <p class="helper">ログイン画面が開かない場合は、ブラウザのポップアップ許可を確認してほしい。</p>
+    </section>
+
+    <section class="panel" id="class-panel" aria-labelledby="class-title" hidden>
+      <div class="panel-heading"><span class="step-index">2</span><h2 id="class-title">受講クラスを選択</h2></div>
+      <p class="account-line">ログイン中：<span id="user-email"></span></p>
+      <label for="class-select">受講クラス</label>
+      <select id="class-select" autocomplete="off">
+        <option value="mon1">月曜1限（英語基礎）</option>
+        <option value="mon4">月曜4限（英語基礎）</option>
+        <option value="wed2">水曜2限（英語発展）</option>
+      </select>
+      <div class="action-row">
+        <button class="button button-subtle" type="button" id="retry-button">登録状態を再確認</button>
+        <button class="button button-outline" type="button" id="logout-button">ログアウト</button>
+      </div>
+    </section>
+
+    <section class="panel" id="code-panel" aria-labelledby="code-title" hidden>
+      <div class="panel-heading"><span class="step-index">3</span><h2 id="code-title">初回認証コードを入力</h2></div>
+      <p>大学メールに案内された16文字の英数字を入力してほしい。コードは発行から30日間有効。</p>
+      <form id="code-form" novalidate>
+        <label for="code-input">初回認証コード（16文字）</label>
+        <input id="code-input" name="initial-code" type="text" inputmode="text"
+          minlength="16" maxlength="24" autocomplete="one-time-code"
+          autocapitalize="characters" spellcheck="false" placeholder="例：ABCDEFGHJKLMNPQR" required>
+        <button class="button button-primary" type="submit" id="code-submit">このクラスに登録する</button>
+      </form>
+      <p class="helper">誤入力しても自動的に利用停止にはならない。届いていない・期限切れの場合は教員に相談してほしい。</p>
+    </section>
+
+    <section class="panel" id="complete-panel" aria-labelledby="complete-title" hidden>
+      <div class="success-mark" aria-hidden="true">✓</div>
+      <h2 id="complete-title">初回登録が完了した</h2>
+      <p>このクラスと大学Googleアカウントの紐付けを確認できた。次回は認証コードなしでログインできる。</p>
+      <p class="helper">現在は認証機能の検証段階。英会話の課題・会話画面は後続のUnitで実装する。</p>
+    </section>
+
+    <p id="status-message" class="status-message" role="status" aria-live="polite" hidden></p>
+    <footer>v0.2.2の会話試験版とは別の認証検証画面。認証コードと学籍番号はアプリ側で保存しない。Firebaseのログイン状態はタブのセッション内だけ保持する。</footer>
+  </main>
+</body>
+</html>
