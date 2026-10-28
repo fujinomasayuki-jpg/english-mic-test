@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>AI英会話 v0.3｜教員用コード発行試験</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f2f5fa; color: #18304f; }
+    main { max-width: 740px; margin: 0 auto; padding: 18px 16px 44px; }
+    header { color: #fff; background: linear-gradient(120deg,#193966,#256b98); padding: 25px; border-radius: 17px; }
+    header p { margin: 6px 0; line-height: 1.6; }
+    h1 { font-size: 1.35rem; margin: 0 0 8px; }
+    h2 { font-size: 1.1rem; margin: 0 0 15px; }
+    .badge { display: inline-block; border: 1px solid #bdd9ff; border-radius: 100px; padding: 5px 10px; font-size: .8rem; }
+    section { background: #fff; border: 1px solid #dbe3ef; border-radius: 16px; padding: 22px; margin-top: 16px; }
+    p { line-height: 1.7; }
+    button { font: inherit; border: 0; border-radius: 8px; min-height: 44px; padding: 11px 17px; cursor: pointer; }
+    button.primary { background: #17619c; color: #fff; font-weight: 650; }
+    button.secondary { background: #edf3fb; color: #185486; border: 1px solid #bcd0e8; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #ffac40; outline-offset: 3px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; }
+    .details { padding: 13px 15px; background: #f0f5fb; border-radius: 9px; line-height: 1.8; margin: 13px 0; }
+    .code-label { display: block; font-weight: 650; margin: 0 0 7px; }
+    #code-value { width: 100%; font: 1.15rem ui-monospace, Consolas, monospace; letter-spacing: .09em; border: 1px solid #abbcd1; border-radius: 8px; padding: 12px; }
+    #status { background: #e7f0fc; color: #163b68; border-radius: 9px; padding: 13px; white-space: pre-wrap; }
+    #status[data-kind="error"] { color: #8d2b1a; background: #fff0e8; }
+    #status[data-kind="success"] { color: #155d3e; background: #e7f6ef; }
+    .notice { color: #77450a; background: #fff6e8; border: 1px solid #f0d4a4; padding: 12px; border-radius: 9px; }
+    small { display: block; color: #57708d; line-height: 1.7; margin-top: 12px; }
+    a { color: #135992; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="badge">AI ENGLISH CONVERSATION · v0.3</p>
+      <h1>教員専用｜初回認証コード発行テスト</h1>
+      <p>試験用データ1件に限ってコード発行を検証する。</p>
+      <p class="badge">開発・検証用／学生には案内しない</p>
+    </header>
+
+    <section aria-labelledby="login-heading">
+      <h2 id="login-heading">① 大学Googleアカウントで本人確認</h2>
+      <p>ログインできても、Workerに登録された教員でなければコードは発行できない。</p>
+      <div class="actions">
+        <button class="primary" id="login" type="button" disabled>大学Googleアカウントでログイン</button>
+        <button class="secondary" id="logout" type="button" disabled>ログアウト</button>
+      </div>
+      <p id="auth-state" aria-live="polite">認証機能を準備中…</p>
+    </section>
+
+    <section aria-labelledby="issue-heading">
+      <h2 id="issue-heading">② 試験用コードを発行</h2>
+      <div class="details">
+        対象クラス：<strong>mon1（月曜1限・試験用）</strong><br>
+        試験受講者ID：<strong>TEST_V03_001</strong><br>
+        コードの有効期間：<strong>30日</strong>
+      </div>
+      <p class="notice">このボタンを押すと、対象者に未使用コードがあればそのコードを無効にして新しいコードを発行する。発行コードは再取得できない。</p>
+      <button class="primary" id="issue" type="button" disabled>16文字の認証コードを発行</button>
+    </section>
+
+    <section id="issued-panel" aria-labelledby="issued-heading" hidden>
+      <h2 id="issued-heading">③ 発行したコードをコピー</h2>
+      <p>コードを学生用認証画面へ貼り付ける。画面を閉じると、このページから再表示できない。</p>
+      <label class="code-label" for="code-value">発行コード（初期状態は非表示）</label>
+      <input id="code-value" type="password" autocomplete="off" readonly spellcheck="false" value="">
+      <div class="actions" style="margin-top:12px">
+        <button class="primary" id="copy" type="button" disabled>コードをコピー</button>
+        <button class="secondary" id="reveal" type="button" disabled>コードを表示</button>
+      </div>
+      <small>コードをスクリーンショットやチャットに貼らない。コピー後は同じタブで学生用画面に移動するとログイン状態を引き継ぎやすい。</small>
+    </section>
+
+    <section aria-labelledby="status-heading">
+      <h2 id="status-heading">状態</h2>
+      <p id="status" data-kind="info" role="status" aria-live="polite">起動準備中…</p>
+      <p><a href="./">学生用認証画面へ移動</a></p>
+    </section>
+  </main>
+
+  <script type="module">
+    import config from './config.mjs';
+    import { createFirebaseClient, validateStudentConfig } from './firebase-client.mjs';
+
+    const CLASS_ID = 'mon1';
+    const STUDENT_ID = 'TEST_V03_001';
+    const byId = id => document.getElementById(id);
+    const loginButton = byId('login');
+    const logoutButton = byId('logout');
+    const issueButton = byId('issue');
+    const copyButton = byId('copy');
+    const revealButton = byId('reveal');
+    const codeInput = byId('code-value');
+    const issuedPanel = byId('issued-panel');
+
+    let client = null;
+    let currentUser = null;
+    let codeInMemory = '';
+    let requestPending = false;
+    let codeIssued = false;
+    let unsubscribe = null;
+
+    function say(message, kind = 'info') {
+      byId('status').textContent = message;
+      byId('status').dataset.kind = kind;
+    }
+
+    function clearCode() {
+      codeInMemory = '';
+      codeIssued = false;
+      codeInput.value = '';
+      codeInput.type = 'password';
+      revealButton.textContent = 'コードを表示';
+      issuedPanel.hidden = true;
+    }
+
+    function refreshButtons() {
+      loginButton.disabled = !client || Boolean(currentUser) || requestPending;
+      logoutButton.disabled = !client || !currentUser || requestPending;
+      issueButton.disabled = !client || !currentUser || requestPending || codeIssued;
+      copyButton.disabled = !codeInMemory;
+      revealButton.disabled = !codeInMemory;
+      byId('auth-state').textContent = !client
+        ? '認証機能を準備中…'
+        : currentUser ? '大学Googleアカウントでログイン済み。教員権限はコード発行時にサーバー側で確認します。'
+          : 'ログアウト中';
+    }
+
+    function explainError(code) {
+      switch (code) {
+        case 'STAFF_ONLY': return 'このアカウントには教員用の発行権限がない。D1のstaff_usersを確認してください。';
+        case 'CODE_ISSUE_REJECTED': return 'コードを発行できなかった。対象名簿・すでに登録済みかどうかを確認してください。';
+        case 'AUTH_REQUIRED': case 'AUTH_INVALID': return '認証情報を確認できなかった。ログアウトして再度ログインしてください。';
+        case 'REGISTRATION_UNAVAILABLE': case 'REGISTRATION_NOT_CONFIGURED':
+          return '認証コード発行サービスに接続できない。しばらく待って確認してください。';
+        case 'auth/popup-blocked': return 'ログイン画面がブロックされた。ポップアップを許可して再試行してください。';
+        case 'auth/popup-closed-by-user': return 'ログインが完了しなかった。必要なら再試行してください。';
+        case 'UNEXPECTED_RESPONSE': return 'サーバーから想定外の応答を受け取った。コードは発行済みの可能性があるため、むやみに再発行しないでください。';
+        default: return '処理を完了できなかった。通信状況を確認して再試行してください。';
+      }
+    }
+
+    loginButton.addEventListener('click', async () => {
+      if (!client || currentUser || requestPending) return;
+      requestPending = true;
+      refreshButtons();
+      say('大学Googleアカウントのログインを待っています…');
+      try {
+        await client.signIn();
+      } catch (error) {
+        say(explainError(error?.code), 'error');
+      } finally {
+        requestPending = false;
+        refreshButtons();
+      }
+    });
+
+    logoutButton.addEventListener('click', async () => {
+      if (!client || !currentUser || requestPending) return;
+      requestPending = true;
+      refreshButtons();
+      clearCode();
+      try {
+        await client.signOut();
+        currentUser = null;
+        say('ログアウトしました。コードはこの画面から破棄しました。');
+      } catch {
+        say('ログアウト処理に失敗しました。画面を閉じ、再度確認してください。', 'error');
+      } finally {
+        requestPending = false;
+        refreshButtons();
+      }
+    });
+
+    issueButton.addEventListener('click', async () => {
+      if (!client || !currentUser || requestPending || codeIssued) return;
+      if (!window.confirm('試験受講者 TEST_V03_001 に新しいコードを発行します。発行済みの未使用コードがあれば無効になります。よろしいですか？')) return;
+      requestPending = true;
+      refreshButtons();
+      say('教員権限を確認して認証コードを発行しています…');
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch(new URL('/api/admin/codes/issue', config.workerBaseUrl), {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ class_id: CLASS_ID, student_id: STUDENT_ID }),
+          cache: 'no-store',
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw { code: body?.code || 'HTTP_ERROR' };
+        if (body?.ok !== true || body.classId !== CLASS_ID ||
+          body.studentId !== STUDENT_ID || !/^[A-HJ-NP-Z2-9]{16}$/.test(body.initialCode || '')) {
+          throw { code: 'UNEXPECTED_RESPONSE' };
+        }
+        codeInMemory = body.initialCode;
+        codeIssued = true;
+        codeInput.value = codeInMemory;
+        issuedPanel.hidden = false;
+        say('認証コードの発行に成功しました。コードをコピーし、学生用画面で試してください。', 'success');
+      } catch (error) {
+        say(explainError(error?.code), 'error');
+      } finally {
+        requestPending = false;
+        refreshButtons();
+      }
+    });
+
+    copyButton.addEventListener('click', async () => {
+      if (!codeInMemory) return;
+      try {
+        await navigator.clipboard.writeText(codeInMemory);
+        say('認証コードをクリップボードへコピーしました。学生用画面に貼り付けてください。', 'success');
+      } catch {
+        say('コピーできませんでした。コードを表示して手動でコピーしてください。', 'error');
+      }
+    });
+
+    revealButton.addEventListener('click', () => {
+      if (!codeInMemory) return;
+      const show = codeInput.type === 'password';
+      codeInput.type = show ? 'text' : 'password';
+      revealButton.textContent = show ? 'コードを隠す' : 'コードを表示';
+    });
+
+    async function start() {
+      if (!validateStudentConfig(config)) {
+        say('試験用の接続設定が整っていません。config.mjsを確認してください。', 'error');
+        byId('auth-state').textContent = '接続設定待ち';
+        return;
+      }
+      try {
+        client = await createFirebaseClient(config);
+        unsubscribe = client.subscribe(user => {
+          if (currentUser?.uid !== user?.uid) clearCode();
+          currentUser = user;
+          refreshButtons();
+          if (user) say('Googleログインを確認しました。コード発行の試験に進めます。');
+        }, () => {
+          currentUser = null;
+          clearCode();
+          refreshButtons();
+          say('ログイン状態を確認できませんでした。再読み込みしてください。', 'error');
+        });
+        refreshButtons();
+        say('教員用試験画面を準備しました。大学Googleアカウントでログインしてください。');
+      } catch {
+        client = null;
+        refreshButtons();
+        say('Firebase認証を準備できませんでした。通信環境を確認してください。', 'error');
+      }
+    }
+
+    window.addEventListener('pagehide', () => {
+      clearCode();
+      unsubscribe?.();
+      currentUser = null;
+    }, { once: true });
+
+    void start();
+  </script>
+</body>
+</html>
