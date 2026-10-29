@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>v0.3 Unit 2-A 模擬AI返答テスト</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Yu Gothic",Meiryo,sans-serif;color-scheme:light}
+*{box-sizing:border-box}body{background:#f1f5fa;color:#17304a;margin:0;line-height:1.6}
+main{max-width:780px;margin:18px auto;padding:0 16px 28px}
+header{background:linear-gradient(110deg,#1d416d,#27719c);color:white;padding:26px;border-radius:16px}
+header small{font-weight:700}h1{font-size:1.35rem;margin:8px 0}
+.panel{background:white;border:1px solid #d7e1ec;border-radius:14px;margin-top:16px;padding:22px}
+h2{font-size:1.05rem;margin:0 0 12px}button{background:#1c6096;border:0;border-radius:8px;color:white;cursor:pointer;font:inherit;font-weight:700;margin:4px 7px 4px 0;padding:10px 15px}
+button.secondary{background:#e9eff7;color:#234361}button:disabled{opacity:.47;cursor:not-allowed}
+.meta{background:#edf3fa;border-radius:9px;padding:12px;margin-bottom:12px}
+.note{font-size:.85rem;color:#526d89;margin-top:10px}
+.notice{border-radius:9px;background:#e9f1fb;padding:12px;white-space:pre-wrap;margin-top:12px}
+.notice.ok{background:#e1f4e9;color:#126040}
+.notice.error{background:#fff0e6;color:#8a3f08}
+.warn{background:#fff3d9;border:1px solid #efcf8a;border-radius:9px;padding:12px;margin:10px 0}
+dl{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}dt{color:#526d89;font-size:.9rem}dd{margin:0 0 12px;font-weight:700;overflow-wrap:anywhere}
+a{color:#155b99}label{display:block;font-weight:700;margin:12px 0 3px}
+input{width:100%;max-width:100%;padding:10px;border:1px solid #bacbdb;border-radius:8px;font:inherit}
+@media(max-width:450px){.panel{padding:16px}}
+</style>
+</head>
+<body><main>
+<header><small>AI ENGLISH CONVERSATION · v0.3 / UNIT 2-A</small><h1>模擬AI返答・利用回数テスト</h1>
+<div>最初の模擬AI返答を保存したときだけ、利用枠が1回消費されるか確認する。</div></header>
+
+<section class="panel">
+<h2>① 大学Googleアカウントで認証</h2>
+<div class="meta">対象クラス：月曜1限（<code>mon1</code>）<br>
+対象課題：<code>TEST_UNIT2A_001</code></div>
+<button id="login" disabled>大学Googleアカウントでログイン</button>
+<button id="logout" class="secondary" disabled>ログアウト</button>
+<p id="authState">認証状態を確認中…</p>
+</section>
+
+<section class="panel">
+<h2>② 既存の試験セッションを取得する</h2>
+<div class="warn"><strong>注意：</strong>原則として、前回作成した進行中のセッションを再取得する。前回のセッションが終了・期限切れの場合、新しい試験用セッションが作成される可能性がある。</div>
+<button id="resume" disabled>進行中のセッションを取得</button>
+<button id="check" class="secondary" disabled>セッションの状態を再確認</button>
+<div id="sessionArea" hidden><dl id="sessionFields"></dl></div>
+</section>
+
+<section class="panel">
+<h2>③ 模擬AI返答を1往復だけ記録</h2>
+<div class="warn"><strong>実行前の確認：</strong>この機能にはWorkerの試験用設定
+<code>UNIT2A_ALLOW_MOCK=true</code> が必要。設定が無効ならHTTP 404になる。
+<strong>最初の模擬返答が記録されると、利用回数を1回消費する。</strong>
+OpenAI APIは呼び出さない。試験後は設定を削除して無効に戻すこと。</div>
+<label for="raw">音声認識結果の例（試験用文字列）</label>
+<input id="raw" value="I plays tennis." maxlength="1000">
+<label for="final">学生が確認した英文（必要時だけ編集）</label>
+<input id="final" value="I plays tennis." maxlength="1000">
+<button id="mock" disabled>次の1往復を記録（模擬返答）</button>
+<button id="repeat" class="secondary" disabled>直前と同じ要求を再送</button>
+<p class="note">誤認識対策B案に向けて、認識結果と確定英文を別項目で送信する。音声入力は行わない。実行ボタンを連打しない。</p>
+</section>
+
+<section class="panel">
+<h2>④ 利用回数を再確認する</h2>
+<button id="usage" class="secondary" disabled>利用回数を取得</button>
+<div id="report" class="notice">ログインしてください。</div>
+<p class="note">認証トークン、セッションID、要求識別子は画面やログに表示しない。画面にはテスト結果だけを示す。</p>
+</section>
+
+<p><a href="./session-start-check.html">セッション開始テスト画面へ戻る</a> ·
+<a href="./assignment-check.html">課題一覧画面へ戻る</a></p>
+</main>
+<script type="module">
+import config from './config.mjs';
+import { createFirebaseClient, validateStudentConfig } from './firebase-client.mjs';
+
+const CLASS_ID='mon1', ASSIGNMENT_ID='TEST_UNIT2A_001';
+const $=id=>document.getElementById(id);
+const login=$('login'),logout=$('logout'),resume=$('resume'),check=$('check'),mock=$('mock'),repeat=$('repeat'),usage=$('usage');
+let client=null,user=null,busy=false,currentSession=null,lastTurnRequest=null;
+const messages={
+ AUTH_REQUIRED:'ログインが必要です。',
+ STUDENT_ACCESS_DENIED:'クラス登録を確認できません。',
+ ASSIGNMENT_NOT_FOUND:'試験用課題がありません。',
+ ASSIGNMENT_CLOSED:'課題公開期間が終了しています。',
+ SESSION_NOT_FOUND:'会話セッションを取得できません。',
+ SESSION_NOT_ACTIVE:'会話セッションが終了しています。',
+ SESSION_EXPIRED:'再開可能期間を過ぎています。',
+ TURN_SEQUENCE_CONFLICT:'会話の順番が一致しません。状態を確認してください。',
+ IDEMPOTENCY_CONFLICT:'再送に使用した識別子の内容が異なっています。',
+ NOT_FOUND:'模擬返答APIが無効です。Workerの試験用設定を確認してください。'
+};
+function report(s,kind=''){$('report').className='notice'+(kind?' '+kind:'');$('report').textContent=s;}
+function controls(){
+ login.disabled=busy||!client||!!user;
+ logout.disabled=busy||!client||!user;
+ resume.disabled=busy||!user;
+ check.disabled=busy||!user||!currentSession;
+ mock.disabled=busy||!user||!currentSession||currentSession.state!=='active'||Number(currentSession.completedTurns)>=Number(currentSession.turnLimit);
+ repeat.disabled=busy||!user||!currentSession||!lastTurnRequest;
+ usage.disabled=busy||!user;
+}
+function setSession(s){
+ if(!s)return;
+ currentSession=s;
+ const rows=[
+ ['状態',s.state],['進行度',`${s.completedTurns} / ${s.turnLimit}`],
+ ['利用枠消費',s.usageConsumed?'YES':'NO'],['課題ID',s.assignmentId]];
+ $('sessionFields').replaceChildren();
+ for(const [name,value] of rows){
+  const dt=document.createElement('dt');dt.textContent=name;
+  const dd=document.createElement('dd');dd.textContent=String(value);
+  $('sessionFields').append(dt,dd);
+ }
+ $('sessionArea').hidden=false;controls();
+}
+async function post(path,payload){
+ const token=await user.getIdToken();
+ const response=await fetch(new URL(path,config.workerBaseUrl),{
+  method:'POST',mode:'cors',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',
+  headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+  body:JSON.stringify(payload)
+ });
+ let data;
+ try{data=await response.json();}catch{throw new Error(`HTTP ${response.status}: 応答を解析できません`);}
+ if(!response.ok||data?.ok!==true){
+  const error=new Error(messages[data?.code]||'API処理に失敗しました。');
+  error.code=data?.code||'UNKNOWN_ERROR';error.status=response.status;throw error;
+ }
+ return data;
+}
+async function run(fn){
+ if(!user||busy)return;
+ busy=true;controls();
+ try{await fn();}
+ catch(error){report(`失敗：${error.status?`HTTP ${error.status} / `:''}${error.code||'NETWORK_ERROR'}。${error.message||''}`,'error');}
+ finally{busy=false;controls();}
+}
+async function getStatus(){
+ if(!currentSession)return;
+ const data=await post('/api/student/sessions/status',{
+  class_id:CLASS_ID,session_id:currentSession.sessionId
+ });
+ setSession(data.session);return data;
+}
+async function resumeSession(){
+ await run(async()=>{
+  lastTurnRequest=null;
+  const data=await post('/api/student/sessions/start',{
+   class_id:CLASS_ID,assignment_id:ASSIGNMENT_ID,request_id:crypto.randomUUID()
+  });
+  setSession(data.session);
+  report(data.resumed?'既存の進行中セッションを取得しました。':data.idempotent?'同一開始要求を再取得しました。':'試験用セッションが新規作成されました。','ok');
+ });
+}
+async function mockTurn(retry){
+ await run(async()=>{
+  let req;
+  if(retry){
+   if(!lastTurnRequest)throw new Error('再送する要求がありません。');
+   req=lastTurnRequest;
+  }else{
+   if(!currentSession||currentSession.state!=='active')throw new Error('有効なセッションがありません。');
+   req={class_id:CLASS_ID,session_id:currentSession.sessionId,
+    turn_number:Number(currentSession.completedTurns)+1,request_id:crypto.randomUUID(),
+    raw_stt:$('raw').value.trim(),final_text:$('final').value.trim()};
+   if(!req.raw_stt||!req.final_text)throw new Error('両方の英文を入力してください。');
+  }
+  const data=await post('/api/student/sessions/mock-turn',req);
+  lastTurnRequest=req;
+  const statusData=await getStatus();
+  report(`${data.idempotent?'同一要求の再送として処理':'模擬AI返答を記録'}しました。\n`+
+   `往復：${statusData.session.completedTurns}/${statusData.session.turnLimit}\n`+
+   `利用枠消費：${statusData.session.usageConsumed?'YES':'NO'}\n`+
+   `模擬AI返答：${data.mockReply||'（なし）'}`,'ok');
+ });
+}
+async function checkUsage(){
+ await run(async()=>{
+  const data=await post('/api/student/assignments',{class_id:CLASS_ID});
+  const a=data.assignments?.find(item=>item.assignmentId===ASSIGNMENT_ID);
+  if(!a)throw new Error('試験用課題が一覧にありません。');
+  report(`使用回数：${a.sessionsUsed}、残り回数：${a.sessionsRemaining}、達成済み：${a.achieved?'YES':'NO'}、状態：${a.status}`,'ok');
+ });
+}
+if(!validateStudentConfig(config)){
+ $('authState').textContent='認証設定に問題があります。';report('Firebase設定を確認してください。','error');
+}else{
+ try{
+  client=await createFirebaseClient(config);
+  client.subscribe(next=>{
+   user=next;currentSession=null;lastTurnRequest=null;$('sessionArea').hidden=true;
+   $('authState').textContent=next?'大学Googleアカウントでログイン済みです。':'ログアウト中です。大学Googleアカウントでログインしてください。';
+   report(next?'「進行中のセッションを取得」を押してください。':'ログインしてください。');
+   controls();
+  },()=>{
+   user=null;currentSession=null;lastTurnRequest=null;$('sessionArea').hidden=true;
+   $('authState').textContent='認証状態を確認できませんでした。';
+   report('認証エラーです。','error');controls();
+  });
+  controls();
+ }catch{
+  $('authState').textContent='認証機能の初期化に失敗しました。';report('初期化エラーです。','error');
+ }
+}
+login.addEventListener('click',async()=>{
+ if(!client||busy)return;busy=true;controls();
+ try{await client.signIn();}catch{report('ログインに失敗しました。','error');}
+ finally{busy=false;controls();}
+});
+logout.addEventListener('click',async()=>{
+ if(!client||busy)return;busy=true;controls();
+ try{await client.signOut();}catch{report('ログアウトに失敗しました。','error');}
+ finally{busy=false;controls();}
+});
+resume.addEventListener('click',resumeSession);
+check.addEventListener('click',()=>run(async()=>{const data=await getStatus();report(`D1の状態確認：${data.session.state} / ${data.session.completedTurns}往復。`,'ok');}));
+mock.addEventListener('click',()=>mockTurn(false));
+repeat.addEventListener('click',()=>mockTurn(true));
+usage.addEventListener('click',checkUsage);
+</script></body></html>
